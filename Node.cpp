@@ -15,16 +15,16 @@
 using namespace std;
 
 // mutex lock to gurantee mutual exclusion while reading the message queue
-std::mutex mtx1;
+std:vector<std::mutex> mtx_locks(32);
 // to map command to a numeral
 std::map<std::string, int> commandMap;
 std::vector<std::thread> thread_pool(32);
 //defining the static variables
 int Node::message_counter = 0;
-bool Node::redo_flag = false;
 std::vector<int> Node::member_list;
 std::vector<bool> Node::check_flag(32, false);
-std::vector<std::queue<std::string>> Node::messageQ;
+std::vector<bool> Node::redo_flag(32, false);
+std::vector<std::queue<std::string>> Node::messageQ(32);
 
 void node_runner(const int node_id);
 
@@ -36,7 +36,56 @@ void display(const std::vector<int>& v)
   }
 }
 
-void listener()
+void update_member_list(const int node_id)
+{
+  //Add to member list
+  Node::member_list.push_back(node_id);
+  //Sort this list
+  std::sort(Node::member_list.begin(), Node::member_list.end());
+
+  //Set flag so that all nodes in the system recompute its finger table
+  for (int i=0; i < Node::member_list.size(); i++)
+  {
+    Node::redo_flag[Node::member_list[i]] = true;
+  }
+}
+
+void compute_finger_table(const int node_id, std::array<std::pair<int,int>,8>& finger_table)
+{
+  int finger;
+  bool found;
+  for(int i=0; i<8; i++)
+  {
+    found = false;
+    finger = (node_id + (2^i) ) % 256;
+
+    for(int i=0; i < Node::member_list.size(); i++)
+    {
+      if( Node::member_list[i] > finger)
+      {
+        finger_table[i] = Node::member_list[i];
+        found = true;
+        break;
+      }
+    }
+    if(!found)
+    {
+      finger_table[i] = Node::member_list[0];
+    }
+  }
+}
+
+int find_predecessor(const int node_id)
+{
+  for(int i=0; i < Node::member_list.size(); i++)
+  {
+    if(node_id == Node::member_list[i])
+      break;
+    }
+    return i == 0 ? Node::member_list[Node::member_list.size()-1] : i-1 ;
+  }
+
+  void listener()
 {
   // to store user input command
   int node_id, key;
@@ -56,46 +105,43 @@ void listener()
     std::string command = inputMessageVector.front();
 
     switch(commandMap[command])
-    {
-      case 1: //join
-        node_id = std::stoi(inputMessageVector[1]);
-        std::cout << "\nNode: " << node_id << " is joining the system" << std::endl;
-        Node::redo_flag = true;
-        Node::check_flag[node_id] = true;
-        std::cout << "And its flag is set" << std::endl;
-        // append to member list to keep track of alive nodes in the system
-        Node::member_list.push_back(node_id);
-        std::sort(Node::member_list.begin(), Node::member_list.end());
-        thread_pool[node_id] = std::thread(node_runner, node_id);
-        display(Node::member_list);
-        break;
+  {
+    case 1: //join
+    node_id = std::stoi(inputMessageVector[1]);
+    std::cout << "\nNode: " << node_id << " is joining the system" << std::endl;
+    Node::check_flag[node_id] = true;
+    std::cout << "And its flag is set" << std::endl;
+    update_member_list(node_id);
+    thread_pool[node_id] = std::thread(node_runner, node_id);
+    display(Node::member_list);
+    break;
 
-      case 2: //find
-        node_id = std::stoi(inputMessageVector[1]);
-        key = std::stoi(inputMessageVector[2]);
-        std::cout << "\nFound"<< std::endl;
-        break;
+    case 2: //find
+    node_id = std::stoi(inputMessageVector[1]);
+    key = std::stoi(inputMessageVector[2]);
+    std::cout << "\nFound"<< std::endl;
+    break;
 
-      case 3: //leave
-        node_id = std::stoi(inputMessageVector[1]);
-        std::cout << "\nNode: " << node_id << " is leaving the system" << std::endl;
-        Node::check_flag[node_id] = false;
-        break;
+    case 3: //leave
+    node_id = std::stoi(inputMessageVector[1]);
+    std::cout << "\nNode: " << node_id << " is leaving the system" << std::endl;
+    Node::check_flag[node_id] = false;
+    break;
 
-      case 4: //show
-        node_id = std::stoi(inputMessageVector[1]);
-        std::cout << "\nShowing keys at Node: " << node_id << std::endl;
-        break;
+    case 4: //show
+    node_id = std::stoi(inputMessageVector[1]);
+    std::cout << "\nShowing keys at Node: " << node_id << std::endl;
+    break;
 
-      case 5: //show-all
-        std::cout << "\nShowing all keys"<< std::endl;
-        break;
+    case 5: //show-all
+    std::cout << "\nShowing all keys"<< std::endl;
+    break;
 
-      default:
-        std::cout << "\nPlease check your input" << std::endl;
-        break;
-    }
+    default:
+    std::cout << "\nPlease check your input" << std::endl;
+    break;
   }
+}
 }
 
 
@@ -103,16 +149,15 @@ void node_runner(const int node_id)
 {
   Node newnode;
   newnode.nodeID = node_id;
-  
+
   while(Node::check_flag[node_id])
   {
     // when a new node joins, all other nodes should recompute their finger tables
-    if(Node::redo_flag)
+    if(Node::redo_flag[node_id])
     {
+      compute_finger_table(newnode.nodeID, newnode.finger_table);
+      Node::redo_flag[node_id] = false;
 
-      Node::redo_flag = false;
-
-      Node::
     }
   }
 }

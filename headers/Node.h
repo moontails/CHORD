@@ -23,12 +23,12 @@ class Node
 
 public:
   static int message_counter;
-  static bool redo_flag;
   static std::vector<int> member_list;
   static std::vector<bool> check_flag;
+  static std::vector<bool> redo_flag;
   static std::vector<std::queue<std::string>> messageQ;
 private:
-  int nodeID;
+  int nodeID, predecessor;
   std::map<int, int> data;
   std::array<std::pair<int,int>,8> finger_table;
 };
