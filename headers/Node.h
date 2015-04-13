@@ -22,15 +22,15 @@ class Node
 {
 
 public:
+  int nodeID, predecessor;
+  std::vector<int> data;
+  std::array<int,8> finger_table;
+
   static int message_counter;
   static std::vector<int> member_list;
   static std::vector<bool> check_flag;
   static std::vector<bool> redo_flag;
   static std::vector<std::queue<std::string>> messageQ;
-private:
-  int nodeID, predecessor;
-  std::map<int, int> data;
-  std::array<std::pair<int,int>,8> finger_table;
 };
 
 #endif  /* NODE_H_ */
